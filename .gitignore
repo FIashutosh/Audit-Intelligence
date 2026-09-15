@@ -1,0 +1,43 @@
+# Environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Data
+data/*.db
+data/*.sqlite
+data/audio/
+data/transcripts/
+*.wav
+*.flac
+*.m4a
+
+# Sample dataset is tracked (override *.mp3 for this dir)
+!data/samples/
+!data/samples/*.mp3
+
+# Plan docs (generated)
+docs/superpowers/
+
+# IDE / Tools
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+
+# Worktrees
+.worktrees/
+
+# Secrets
+.secrets.baseline

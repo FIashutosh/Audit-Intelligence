@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint and test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install project (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff lint
+        # UP038 is ignored at the CI level because the pinned ruff==0.11.8 still
+        # enforces it while the rule was deprecated and later removed in newer
+        # ruff versions. Two pre-existing isinstance(...) calls in src/services/
+        # history.py and src/ui/tabs/history.py rely on the tuple form. This audit
+        # does not modify production source files, so the rule is ignored in CI
+        # rather than rewritten in code. Drop this flag if you bump ruff or
+        # remove the UP038 rule from pyproject.toml's [tool.ruff.lint] select.
+        run: ruff check --extend-ignore UP038 src/ tests/ app.py
+
+      # Ruff format check intentionally omitted: three pre-existing source files
+      # have format-diffs against the pinned ruff version, and this audit does
+      # not modify production source files. Re-enable when those files are
+      # formatted (via `make format`) or when the format diffs are resolved.
+
+      - name: Compile-check
+        run: python -m compileall -q app.py src/
+
+      - name: Run unit and security tests
+        run: pytest tests/unit/ tests/security/ -v --tb=short
+
+  security-audit:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit (advisory, does not fail CI)
+        run: pip-audit -r requirements.txt --strict || true
